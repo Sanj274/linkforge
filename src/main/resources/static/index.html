@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LinkForge — forge short links</title>
+<meta name="description" content="LinkForge: a self-hosted link shortener with custom aliases, expiry, QR codes and click analytics.">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<div class="grain"></div>
+
+<header class="site-header">
+  <a href="/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="4" y="14" width="16" height="16" rx="3" transform="rotate(-20 4 14)" stroke="currentColor" stroke-width="2.5"/>
+      <rect x="18" y="9" width="16" height="16" rx="3" transform="rotate(-20 18 9)" stroke="currentColor" stroke-width="2.5"/>
+    </svg>
+    <span>LinkForge</span>
+  </a>
+  <nav class="site-nav">
+    <a href="#dashboard">Dashboard</a>
+    <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle light and dark theme">
+      <svg class="icon-sun" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M10 1.5v2M10 16.5v2M18.5 10h-2M3.5 10h-2M15.6 4.4l-1.4 1.4M5.8 14.2l-1.4 1.4M15.6 15.6l-1.4-1.4M5.8 5.8L4.4 4.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <svg class="icon-moon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M17 11.5A7 7 0 1 1 8.5 3a5.5 5.5 0 0 0 8.5 8.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    </button>
+  </nav>
+</header>
+
+<main>
+
+  <section class="hero" id="hero">
+    <div class="hero-copy">
+      <p class="kicker">Self-hosted &amp; open source</p>
+      <h1>Paste a link.<br>Pull it from the fire<br>short, and yours.</h1>
+      <p class="hero-sub">LinkForge turns long, unwieldy URLs into short ones you control — with
+        custom aliases, expiry dates, click tracking and scannable QR codes. No third party, no
+        rate limits, no accounts.</p>
+
+      <div class="stat-row" id="summary-stats">
+        <div class="stat">
+          <span class="stat-value" id="stat-total-urls">0</span>
+          <span class="stat-label">links forged</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="stat-total-clicks">0</span>
+          <span class="stat-label">clicks routed</span>
+        </div>
+        <div class="stat stat-spark">
+          <svg id="global-sparkline" class="sparkline" viewBox="0 0 140 40" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <span class="stat-label">last 14 days</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="forge-panel">
+      <form id="shorten-form" novalidate>
+        <label class="field">
+          <span class="field-label">Long URL</span>
+          <input type="url" id="original-url" name="originalUrl" placeholder="https://example.com/a/very/long/path?with=params" required autocomplete="off">
+        </label>
+
+        <div class="field-row">
+          <label class="field">
+            <span class="field-label">Custom alias <em>(optional)</em></span>
+            <div class="alias-input">
+              <span class="alias-prefix" id="alias-prefix">/</span>
+              <input type="text" id="custom-alias" name="customAlias" placeholder="my-link" maxlength="20" autocomplete="off">
+            </div>
+          </label>
+          <label class="field">
+            <span class="field-label">Expires <em>(optional)</em></span>
+            <input type="datetime-local" id="expires-at" name="expiresAt">
+          </label>
+        </div>
+
+        <label class="field">
+          <span class="field-label">Password <em>(optional — lock the link)</em></span>
+          <input type="password" id="link-password" name="password" placeholder="Leave blank for a public link" autocomplete="new-password" minlength="4">
+        </label>
+
+        <button type="submit" class="btn-forge" id="forge-btn">
+          <span>Forge link</span>
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11M11 5l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+
+        <p class="form-error" id="form-error" role="alert" hidden></p>
+      </form>
+
+      <div class="result-card" id="result-card" hidden>
+        <div class="result-top">
+          <span class="result-tag" id="result-tag">Ready</span>
+          <span class="result-tag result-tag-lock" id="result-lock-tag" hidden>🔒 Protected</span>
+          <button class="icon-btn" id="close-result" aria-label="Dismiss">
+            <svg viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <div class="result-url-row">
+          <a id="result-short-url" class="result-short-url" target="_blank" rel="noopener"></a>
+          <button class="btn-copy" id="copy-btn" type="button">Copy</button>
+        </div>
+        <p class="result-original" id="result-original-url"></p>
+        <div class="result-actions">
+          <button type="button" class="link-action" id="show-qr-btn">Show QR code</button>
+          <span class="result-meta" id="result-expiry"></span>
+        </div>
+        <div class="qr-wrap" id="qr-wrap" hidden>
+          <img id="qr-image" alt="QR code for short link">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="how" aria-label="How it works">
+    <div class="how-step">
+      <span class="how-index">01</span>
+      <h3>Drop in the URL</h3>
+      <p>Paste any link — LinkForge validates it client &amp; server-side before it ever hits the database.</p>
+    </div>
+    <div class="how-connector" aria-hidden="true"></div>
+    <div class="how-step">
+      <span class="how-index">02</span>
+      <h3>Forge the code</h3>
+      <p>A random Base62 code is minted, or claim a custom alias. Set an optional expiry to auto-retire it.</p>
+    </div>
+    <div class="how-connector" aria-hidden="true"></div>
+    <div class="how-step">
+      <span class="how-index">03</span>
+      <h3>Share &amp; track</h3>
+      <p>Hand out the short link or its QR code. Every visit is counted on the dashboard below.</p>
+    </div>
+  </section>
+
+  <section class="dashboard" id="dashboard">
+    <div class="dashboard-head">
+      <div>
+        <h2>Your links</h2>
+        <p class="dashboard-sub">Every link forged on this server, most recent first.</p>
+      </div>
+      <div class="dashboard-controls">
+        <input type="search" id="search-input" placeholder="Filter by URL or code…">
+        <button class="btn-ghost" id="import-btn" type="button">Import CSV</button>
+        <input type="file" id="import-file-input" accept=".csv" hidden>
+        <a class="btn-ghost" id="export-btn" href="/api/urls/export/csv">Export CSV</a>
+        <button class="btn-ghost" id="refresh-btn" type="button">Refresh</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table id="links-table">
+        <thead>
+          <tr>
+            <th>Short link</th>
+            <th>Destination</th>
+            <th>Clicks</th>
+            <th>Created</th>
+            <th>Expires</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="links-tbody">
+        </tbody>
+      </table>
+      <p class="empty-state" id="empty-state" hidden>No links yet — forge your first one above.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <p>LinkForge — built with Spring Boot, Spring Data JPA, H2 and vanilla JavaScript.</p>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div class="modal-backdrop" id="qr-modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <h3 id="modal-title">Scan to open</h3>
+      <button class="icon-btn" id="close-modal" aria-label="Close">
+        <svg viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <img id="modal-qr-image" alt="QR code">
+    <p class="modal-code" id="modal-short-url"></p>
+    <a id="modal-download" download class="btn-ghost">Download PNG</a>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="analytics-modal-backdrop" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="analytics-modal-title">
+    <div class="modal-head">
+      <h3 id="analytics-modal-title">Clicks over time</h3>
+      <button class="icon-btn" id="close-analytics-modal" aria-label="Close">
+        <svg viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <p class="modal-code" id="analytics-short-url"></p>
+    <div class="chart-wrap" id="analytics-chart-wrap">
+      <svg id="analytics-chart" viewBox="0 0 320 140" preserveAspectRatio="none"></svg>
+    </div>
+    <p class="chart-empty" id="analytics-empty" hidden>No clicks recorded in this window yet.</p>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="import-modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
+    <div class="modal-head">
+      <h3 id="import-modal-title">Import results</h3>
+      <button class="icon-btn" id="close-import-modal" aria-label="Close">
+        <svg viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div id="import-summary" class="import-summary"></div>
+    <ul id="import-errors" class="import-errors"></ul>
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>
