@@ -94,7 +94,7 @@
     if (!iso) return "—";
     const d = new Date(iso);
     return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) +
-      " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+        " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   }
 
   function timeAgo(iso) {
@@ -119,6 +119,28 @@
       throw new Error(message);
     }
     return body;
+  }
+
+  // Clipboard API needs a secure context (HTTPS or localhost). On plain HTTP
+  // deployments (e.g. a bare EC2 IP) it's unavailable, so fall back to the
+  // older execCommand approach, which works everywhere.
+  async function copyToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const succeeded = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    if (!succeeded) {
+      throw new Error("Copy failed");
+    }
   }
 
   // ---------- create short link ----------
@@ -188,7 +210,7 @@
 
   copyBtn.addEventListener("click", async () => {
     try {
-      await navigator.clipboard.writeText(resultShortUrl.textContent);
+      await copyToClipboard(resultShortUrl.textContent);
       copyBtn.textContent = "Copied";
       copyBtn.classList.add("copied");
       setTimeout(() => { copyBtn.textContent = "Copy"; copyBtn.classList.remove("copied"); }, 1600);
@@ -229,7 +251,7 @@
     const q = searchInput.value.trim().toLowerCase();
     if (!q) return allLinks;
     return allLinks.filter(l =>
-      l.originalUrl.toLowerCase().includes(q) || l.shortCode.toLowerCase().includes(q)
+        l.originalUrl.toLowerCase().includes(q) || l.shortCode.toLowerCase().includes(q)
     );
   }
 
@@ -297,7 +319,7 @@
       copyRowBtn.textContent = "Copy";
       copyRowBtn.addEventListener("click", async () => {
         try {
-          await navigator.clipboard.writeText(link.shortUrl);
+          await copyToClipboard(link.shortUrl);
           showToast("Copied to clipboard.");
         } catch (_) {
           showToast("Could not copy — select and copy manually.", true);
@@ -456,8 +478,8 @@
 
   function showImportResult(result) {
     importSummary.innerHTML =
-      `<strong>${result.created}</strong> link${result.created === 1 ? "" : "s"} created` +
-      (result.skipped > 0 ? `, <strong>${result.skipped}</strong> skipped` : "");
+        `<strong>${result.created}</strong> link${result.created === 1 ? "" : "s"} created` +
+        (result.skipped > 0 ? `, <strong>${result.skipped}</strong> skipped` : "");
     importErrors.innerHTML = "";
     for (const err of result.errors) {
       const li = document.createElement("li");
