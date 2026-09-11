@@ -1,10 +1,10 @@
 # LinkForge
 
-A full-stack, self-hosted URL shortener built with **Spring Boot** and vanilla **HTML/CSS/JavaScript** — no frameworks, no third-party shortening service, no accounts.
+A full-stack, self-hosted URL shortener built with **Spring Boot** and **HTML/CSS/JavaScript** — no frameworks, no third-party shortening service, no accounts.
 
 Paste a long URL, get back a short one. Optionally pick a custom alias, set an expiry date, lock it with a password, and share it as a scannable QR code. Every visit is tracked and shown on a live dashboard with click-over-time charts.
 
-Deployed and tested on **AWS EC2** as a systemd-managed service.
+Deployed and tested on **AWS EC2** as a systemd-managed service. The PostgreSQL profile has been verified end-to-end locally via Docker (not just configured — actually connected, migrated, and tested).
 
 ## Features
 
@@ -33,6 +33,7 @@ Deployed and tested on **AWS EC2** as a systemd-managed service.
 | CSV            | Apache Commons CSV                                             |
 | Frontend       | Vanilla HTML5, CSS3, JavaScript (no build step)                 |
 | Deployment     | AWS EC2 (Ubuntu), systemd-managed process                        |
+| Containerization | Docker (used to run/verify PostgreSQL locally)                  |
 | Testing        | JUnit 5, AssertJ, Spring Boot Test                                |
 | Build          | Maven                                                              |
 
@@ -69,11 +70,19 @@ The app creates a `./data/linkforge.mv.db` H2 database file on first run — no 
 
 ### Using PostgreSQL instead
 
+Verified locally with Docker — no local Postgres install needed:
+
+```bash
+docker run --name linkforge-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=linkforge -p 5432:5432 -d postgres:16
+```
+
 ```bash
 ./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=postgres
 ```
 
-Update the connection details in `src/main/resources/application-postgres.properties` first.
+Update the connection details in `src/main/resources/application-postgres.properties` if your credentials differ from the defaults above.
+
+**Note on Windows:** the app forces `user.timezone=UTC` at startup (see `LinkforgeApplication.main`), since some Windows locales report a legacy IANA timezone id (`Asia/Calcutta`) that PostgreSQL's JDBC handshake rejects outright. This fix is host-independent and doesn't affect H2 or Linux deployments.
 
 ### Running the tests
 
