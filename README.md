@@ -4,17 +4,19 @@ A full-stack, self-hosted URL shortener built with **Spring Boot** and vanilla *
 
 Paste a long URL, get back a short one. Optionally pick a custom alias, set an expiry date, lock it with a password, and share it as a scannable QR code. Every visit is tracked and shown on a live dashboard with click-over-time charts.
 
+Deployed and tested on **AWS EC2** as a systemd-managed service.
+
 ## Features
 
 - **Shorten any URL** with a randomly generated, collision-checked Base62 code
 - **Custom aliases** (`/my-launch` instead of `/aZ3xQ1p`)
 - **Optional expiry dates** — expired links return `410 Gone` and are flagged in the dashboard
 - **Password-protected links** — set a password on any link; visitors land on a small unlock page before being redirected. Passwords are hashed with BCrypt, never stored in plain text
-- **Click analytics** — every redirect is logged with a timestamp, powering a per-link "clicks over time" chart and a site-wide sparkline in the header
+- **Click tracking** — every redirect is logged with a timestamp, powering a per-link "clicks over time" chart and a site-wide sparkline in the header
 - **QR code generation** on the server (via ZXing) for every short link, downloadable as PNG
 - **Bulk CSV import/export** — export every link as a CSV file, or bulk-create links by uploading a CSV with `originalUrl` / `customAlias` columns
 - **Dark/light theme toggle** — preference saved to `localStorage`, respects OS preference on first visit
-- **Dashboard** listing every link with live search/filter, copy, QR, per-link analytics and delete actions
+- **Dashboard** listing every link with live search/filter, copy, QR, per-link stats and delete actions
 - **REST API** with proper HTTP status codes (`201`, `401`, `404`, `409`, `410`, `413`, `422`) and JSON error bodies
 - **Zero-config persistence** — ships with an embedded H2 file database, with an optional PostgreSQL profile for production
 - **Input validation** on both the client and server (URL format, alias format, password length, expiry in the future)
@@ -30,8 +32,9 @@ Paste a long URL, get back a short one. Optionally pick a custom alias, set an e
 | QR codes       | ZXing (`com.google.zxing`)                                    |
 | CSV            | Apache Commons CSV                                             |
 | Frontend       | Vanilla HTML5, CSS3, JavaScript (no build step)                 |
-| Testing        | JUnit 5, AssertJ, Spring Boot Test                               |
-| Build          | Maven                                                             |
+| Deployment     | AWS EC2 (Ubuntu), systemd-managed process                        |
+| Testing        | JUnit 5, AssertJ, Spring Boot Test                                |
+| Build          | Maven                                                              |
 
 ## Architecture
 
@@ -52,7 +55,7 @@ src/main/resources/
 
 The frontend is served as static resources directly by Spring Boot — open `http://localhost:8080` and it's there, no separate dev server or `npm install` required.
 
-## Running it
+## Running it locally
 
 Requirements: **Java 21+** and **Maven** (or use the included wrapper).
 
@@ -77,6 +80,39 @@ Update the connection details in `src/main/resources/application-postgres.proper
 ```bash
 ./mvnw test
 ```
+
+## Deploying to AWS EC2
+
+This project was deployed and load-tested on a t3.micro EC2 instance (Ubuntu, free tier). Summary of the process:
+
+1. Launch an EC2 instance (Ubuntu, `t2.micro`/`t3.micro` for free tier)
+2. Open inbound ports **22** (SSH) and **8080** (app) in the instance's security group
+3. Install Java 21: `sudo apt update && sudo apt install -y openjdk-21-jdk git`
+4. Clone the repo and build: `git clone <repo-url> && cd linkforge && ./mvnw clean package -DskipTests`
+5. Run it as a systemd service (auto-restarts on crash/reboot):
+   ```ini
+   # /etc/systemd/system/linkforge.service
+   [Unit]
+   Description=LinkForge URL Shortener
+   After=network.target
+
+   [Service]
+   User=ubuntu
+   WorkingDirectory=/home/ubuntu/linkforge
+   ExecStart=/usr/bin/java -jar /home/ubuntu/linkforge/target/linkforge-0.0.1-SNAPSHOT.jar --app.base-url=http://<PUBLIC_IP>:8080
+   Restart=always
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable linkforge
+   sudo systemctl start linkforge
+   ```
+6. Set `app.base-url` to the instance's public/Elastic IP so generated short links and QR codes resolve correctly
+
+Note: the Clipboard API (`navigator.clipboard`) requires a secure context (HTTPS or `localhost`). On a plain-HTTP deployment like a bare EC2 IP, the frontend falls back to the legacy `document.execCommand('copy')` method so the copy button still works.
 
 ## API reference
 
@@ -122,7 +158,7 @@ curl -X POST http://localhost:8080/api/urls \
 
 **CSV import format**
 
-The importer looks for an `originalUrl` (or `url`) column, and an optional `customAlias` (or `alias`) column. Extra columns are ignored. Rows with an invalid or duplicate alias are skipped and reported back in the response, without failing the whole import.
+The importer looks for an `originalUrl` (or `url`) column, and an optional `customAlias` (or `alias`) column. Extra columns are ignored. Rows with an invalid URL or duplicate alias are skipped and reported back in the response, without failing the whole import.
 
 ```csv
 originalUrl,customAlias
@@ -130,13 +166,9 @@ https://example.com/page-one,page-one
 https://example.com/page-two,
 ```
 
-## Deploying
-
-Set `app.base-url` in `application.properties` to your public domain (e.g. `https://short.yourdomain.com`) so generated short links, QR codes and CSV exports point to the right place.
-
 ## Possible next steps
 
 - User accounts / API keys, so links are scoped per owner
 - Rate limiting on the create endpoint
+- HTTPS via a domain name + Nginx reverse proxy + Let's Encrypt
 - Analytics broken down by referrer, country or device
-- Link previews / Open Graph metadata scraping for the destination page
