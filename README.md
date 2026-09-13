@@ -1,10 +1,10 @@
 # LinkForge
 
-A full-stack, self-hosted URL shortener built with **Spring Boot** and **HTML/CSS/JavaScript** — no frameworks, no third-party shortening service, no accounts.
+A full-stack, self-hosted URL shortener built with **Spring Boot** and vanilla **HTML/CSS/JavaScript** — no frameworks, no third-party shortening service, no accounts.
 
 Paste a long URL, get back a short one. Optionally pick a custom alias, set an expiry date, lock it with a password, and share it as a scannable QR code. Every visit is tracked and shown on a live dashboard with click-over-time charts.
 
-Deployed and tested on **AWS EC2** as a systemd-managed service. The PostgreSQL profile has been verified end-to-end locally via Docker (not just configured — actually connected, migrated, and tested).
+Deployed and tested on **AWS EC2** two ways: as a traditional systemd-managed Java process, and — separately — fully containerized with Docker (multi-stage build, pushed to Docker Hub, pulled and run on a fresh EC2 instance). The PostgreSQL profile has been verified end-to-end locally via Docker as well.
 
 ## Features
 
@@ -32,8 +32,8 @@ Deployed and tested on **AWS EC2** as a systemd-managed service. The PostgreSQL 
 | QR codes       | ZXing (`com.google.zxing`)                                    |
 | CSV            | Apache Commons CSV                                             |
 | Frontend       | Vanilla HTML5, CSS3, JavaScript (no build step)                 |
-| Deployment     | AWS EC2 (Ubuntu), systemd-managed process                        |
-| Containerization | Docker (used to run/verify PostgreSQL locally)                  |
+| Deployment     | AWS EC2 (Ubuntu) — both a systemd-managed process and a Docker container pulled from Docker Hub |
+| Containerization | Docker (multi-stage build); used both to run/verify PostgreSQL locally and to containerize the app itself |
 | Testing        | JUnit 5, AssertJ, Spring Boot Test                                |
 | Build          | Maven                                                              |
 
@@ -90,9 +90,48 @@ Update the connection details in `src/main/resources/application-postgres.proper
 ./mvnw test
 ```
 
-## Deploying to AWS EC2
+## Running with Docker
 
-This project was deployed and load-tested on a t3.micro EC2 instance (Ubuntu, free tier). Summary of the process:
+The project includes a multi-stage `Dockerfile` — one stage compiles the app with a full JDK, the second copies only the finished jar into a much smaller JRE-only image (no source code, no build tools shipped in the final image).
+
+**Build the image:**
+```bash
+docker build -t linkforge:latest .
+```
+
+**Run it:**
+```bash
+docker run --name linkforge-app -p 8080:8080 -d linkforge:latest
+```
+
+Open `http://localhost:8080` — the app is now running entirely inside the container.
+
+**Override the base URL** (needed for a real deployment, so generated short links/QR codes point at the right host) via an environment variable — Spring Boot automatically maps `APP_BASE_URL` to the `app.base-url` property:
+```bash
+docker run --name linkforge-app -p 8080:8080 -d --restart=always -e APP_BASE_URL=http://<PUBLIC_IP>:8080 linkforge:latest
+```
+
+### Publishing to a registry and deploying elsewhere
+
+This image was pushed to Docker Hub and pulled onto a separate EC2 instance to deploy it, with no build step required on the server at all:
+
+```bash
+# on your machine
+docker tag linkforge:latest <your-dockerhub-username>/linkforge:latest
+docker push <your-dockerhub-username>/linkforge:latest
+
+# on the server
+docker pull <your-dockerhub-username>/linkforge:latest
+docker run --name linkforge-app -p 8080:8080 -d --restart=always \
+  -e APP_BASE_URL=http://<PUBLIC_IP>:8080 <your-dockerhub-username>/linkforge:latest
+```
+
+Note `--restart=always` here replaces the need for a systemd service entirely — Docker itself keeps the container running permanently and restarts it after a crash or an instance reboot.
+
+## Deploying to AWS EC2 (without Docker)
+
+This is the alternative, traditional path: building directly on the server with Maven and supervising the process with systemd, rather than shipping a pre-built container.
+
 
 1. Launch an EC2 instance (Ubuntu, `t2.micro`/`t3.micro` for free tier)
 2. Open inbound ports **22** (SSH) and **8080** (app) in the instance's security group
